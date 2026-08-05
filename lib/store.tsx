@@ -1,4 +1,6 @@
-import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
+import { doc, onSnapshot, setDoc } from 'firebase/firestore';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { ensureSignedIn, HOUSEHOLD_DOC_PATH, db } from './firebase';
 import { DAYS, Ingredient, MEALS_CATALOG, Rayon } from './meals';
 
 export type MealRef = {
@@ -48,6 +50,7 @@ const initialState: State = {
 };
 
 type StoreValue = State & {
+  loading: boolean;
   toggleDone: (index: number) => void;
   assignToFirstEmpty: (meal: MealRef) => void;
   clearSlot: (index: number) => void;
@@ -62,73 +65,143 @@ type StoreValue = State & {
 
 const StoreContext = createContext<StoreValue | null>(null);
 
+const householdDocRef = () => (db ? doc(db, ...HOUSEHOLD_DOC_PATH) : null);
+
 export function StoreProvider({ children }: { children: React.ReactNode }) {
-  const [state, setState] = useState<State>(initialState);
+  const [state, setStateRaw] = useState<State>(initialState);
+  const [loading, setLoading] = useState<boolean>(!!db);
+  const stateRef = useRef(state);
 
-  const toggleDone = useCallback((index: number) => {
-    setState((s) => ({
-      ...s,
-      week: s.week.map((d, i) => (i === index ? { ...d, done: !d.done } : d)),
-    }));
+  useEffect(() => {
+    const ref = householdDocRef();
+    if (!ref) return;
+    let unsub: (() => void) | undefined;
+    let cancelled = false;
+
+    ensureSignedIn()
+      .then(() => {
+        if (cancelled) return;
+        unsub = onSnapshot(ref, (snap) => {
+          if (snap.exists()) {
+            const data = snap.data() as State;
+            stateRef.current = data;
+            setStateRaw(data);
+            setLoading(false);
+          } else {
+            setDoc(ref, initialState).catch(() => {});
+          }
+        });
+      })
+      .catch(() => setLoading(false));
+
+    return () => {
+      cancelled = true;
+      unsub?.();
+    };
   }, []);
 
-  const assignToFirstEmpty = useCallback((meal: MealRef) => {
-    setState((s) => {
-      const idx = s.nextMenu.findIndex((sl) => !sl.meal);
-      if (idx === -1) return s;
-      return { ...s, nextMenu: s.nextMenu.map((sl, i) => (i === idx ? { ...sl, meal } : sl)) };
-    });
+  // Applies a local state update and, when Firebase is configured, persists it
+  // to the shared household document so other devices pick it up in real time.
+  const commit = useCallback((updater: (s: State) => State) => {
+    const next = updater(stateRef.current);
+    stateRef.current = next;
+    setStateRaw(next);
+    const ref = householdDocRef();
+    if (ref) setDoc(ref, next).catch(() => {});
   }, []);
 
-  const clearSlot = useCallback((index: number) => {
-    setState((s) => ({
-      ...s,
-      nextMenu: s.nextMenu.map((sl, i) => (i === index ? { ...sl, meal: null } : sl)),
-    }));
-  }, []);
+  const toggleDone = useCallback(
+    (index: number) => {
+      commit((s) => ({
+        ...s,
+        week: s.week.map((d, i) => (i === index ? { ...d, done: !d.done } : d)),
+      }));
+    },
+    [commit]
+  );
 
-  const assignToSlot = useCallback((index: number, meal: MealRef) => {
-    setState((s) => ({
-      ...s,
-      nextMenu: s.nextMenu.map((sl, i) => (i === index ? { ...sl, meal } : sl)),
-    }));
-  }, []);
+  const assignToFirstEmpty = useCallback(
+    (meal: MealRef) => {
+      commit((s) => {
+        const idx = s.nextMenu.findIndex((sl) => !sl.meal);
+        if (idx === -1) return s;
+        return { ...s, nextMenu: s.nextMenu.map((sl, i) => (i === idx ? { ...sl, meal } : sl)) };
+      });
+    },
+    [commit]
+  );
 
-  const toggleShoppingItem = useCallback((name: string) => {
-    setState((s) => ({ ...s, shoppingChecked: { ...s.shoppingChecked, [name]: !s.shoppingChecked[name] } }));
-  }, []);
+  const clearSlot = useCallback(
+    (index: number) => {
+      commit((s) => ({
+        ...s,
+        nextMenu: s.nextMenu.map((sl, i) => (i === index ? { ...sl, meal: null } : sl)),
+      }));
+    },
+    [commit]
+  );
 
-  const addExtraItem = useCallback((name: string, rayon: Rayon) => {
-    const trimmed = name.trim();
-    if (!trimmed) return;
-    setState((s) => ({
-      ...s,
-      extraItems: [...s.extraItems, { id: Date.now(), name: trimmed, rayon }],
-    }));
-  }, []);
+  const assignToSlot = useCallback(
+    (index: number, meal: MealRef) => {
+      commit((s) => ({
+        ...s,
+        nextMenu: s.nextMenu.map((sl, i) => (i === index ? { ...sl, meal } : sl)),
+      }));
+    },
+    [commit]
+  );
 
-  const removeExtraItem = useCallback((id: number) => {
-    setState((s) => ({ ...s, extraItems: s.extraItems.filter((i) => i.id !== id) }));
-  }, []);
+  const toggleShoppingItem = useCallback(
+    (name: string) => {
+      commit((s) => ({ ...s, shoppingChecked: { ...s.shoppingChecked, [name]: !s.shoppingChecked[name] } }));
+    },
+    [commit]
+  );
 
-  const addIdea = useCallback((name: string, desc: string, link: string) => {
-    const trimmed = name.trim();
-    if (!trimmed) return;
-    setState((s) => ({
-      ...s,
-      ideas: [...s.ideas, { id: Date.now(), name: trimmed, desc: desc.trim(), link: link.trim() }],
-    }));
-  }, []);
+  const addExtraItem = useCallback(
+    (name: string, rayon: Rayon) => {
+      const trimmed = name.trim();
+      if (!trimmed) return;
+      commit((s) => ({
+        ...s,
+        extraItems: [...s.extraItems, { id: Date.now(), name: trimmed, rayon }],
+      }));
+    },
+    [commit]
+  );
 
-  const removeIdea = useCallback((id: number) => {
-    setState((s) => ({ ...s, ideas: s.ideas.filter((i) => i.id !== id) }));
-  }, []);
+  const removeExtraItem = useCallback(
+    (id: number) => {
+      commit((s) => ({ ...s, extraItems: s.extraItems.filter((i) => i.id !== id) }));
+    },
+    [commit]
+  );
+
+  const addIdea = useCallback(
+    (name: string, desc: string, link: string) => {
+      const trimmed = name.trim();
+      if (!trimmed) return;
+      commit((s) => ({
+        ...s,
+        ideas: [...s.ideas, { id: Date.now(), name: trimmed, desc: desc.trim(), link: link.trim() }],
+      }));
+    },
+    [commit]
+  );
+
+  const removeIdea = useCallback(
+    (id: number) => {
+      commit((s) => ({ ...s, ideas: s.ideas.filter((i) => i.id !== id) }));
+    },
+    [commit]
+  );
 
   const mealFromIdea = useCallback((idea: Idea) => ideaToMealRef(idea), []);
 
   const value = useMemo<StoreValue>(
     () => ({
       ...state,
+      loading,
       toggleDone,
       assignToFirstEmpty,
       clearSlot,
@@ -140,7 +213,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       removeIdea,
       mealFromIdea,
     }),
-    [state, toggleDone, assignToFirstEmpty, clearSlot, assignToSlot, toggleShoppingItem, addExtraItem, removeExtraItem, addIdea, removeIdea, mealFromIdea]
+    [state, loading, toggleDone, assignToFirstEmpty, clearSlot, assignToSlot, toggleShoppingItem, addExtraItem, removeExtraItem, addIdea, removeIdea, mealFromIdea]
   );
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;

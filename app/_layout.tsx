@@ -6,6 +6,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { StoreGate } from '../components/StoreGate';
 import { StoreProvider } from '../lib/store';
 import { colors } from '../lib/theme';
 
@@ -29,7 +30,9 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.background }}>
       <SafeAreaProvider>
         <StoreProvider>
-          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }} />
+          <StoreGate>
+            <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }} />
+          </StoreGate>
         </StoreProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
