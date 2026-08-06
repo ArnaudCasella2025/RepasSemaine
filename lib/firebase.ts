@@ -1,6 +1,6 @@
 import { FirebaseApp, getApps, initializeApp } from 'firebase/app';
 import { Auth, getAuth, signInAnonymously } from 'firebase/auth';
-import { Firestore, getFirestore } from 'firebase/firestore';
+import { Firestore, initializeFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
@@ -20,7 +20,9 @@ let db: Firestore | null = null;
 if (isFirebaseConfigured) {
   app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
   auth = getAuth(app);
-  db = getFirestore(app);
+  // React Native's networking layer doesn't reliably support Firestore's default
+  // streaming (WebChannel) transport, so fall back to long-polling.
+  db = initializeFirestore(app, { experimentalAutoDetectLongPolling: true });
 }
 
 export { auth, db };
