@@ -1,11 +1,13 @@
 import { useRouter } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { FormInput } from '../../components/FormInput';
 import { ProgressBar } from '../../components/ProgressBar';
 import { RayonSelect } from '../../components/RayonSelect';
 import { ScreenShell } from '../../components/ScreenShell';
 import { ShoppingItemRow } from '../../components/ShoppingItemRow';
+import { fetchAiIngredients, isAiShoppingConfigured } from '../../lib/aiShoppingList';
+import { notify } from '../../lib/alert';
 import { RAYONS, Rayon } from '../../lib/meals';
 import { buildShoppingGroups } from '../../lib/selectors';
 import { useStore } from '../../lib/store';
@@ -13,19 +15,38 @@ import { colors, fonts, radii } from '../../lib/theme';
 
 export default function CoursesScreen() {
   const router = useRouter();
-  const { nextMenu, extraItems, shoppingChecked, toggleShoppingItem, addExtraItem, removeExtraItem } = useStore();
+  const { nextMenu, extraItems, shoppingChecked, toggleShoppingItem, addExtraItem, removeExtraItem, applyAiIngredients } = useStore();
   const [newItemName, setNewItemName] = useState('');
   const [newItemRayon, setNewItemRayon] = useState<Rayon>(RAYONS[0]);
+  const [aiLoading, setAiLoading] = useState(false);
 
   const groups = useMemo(() => buildShoppingGroups(nextMenu, extraItems), [nextMenu, extraItems]);
   const hasItems = groups.length > 0;
   const filledCount = nextMenu.filter((s) => s.meal).length;
   const menuComplete = filledCount === 7;
 
+  const mealsMissingIngredients = useMemo(
+    () => nextMenu.filter((sl) => sl.meal && sl.meal.ingredients.length === 0).map((sl) => ({ id: sl.meal!.id, name: sl.meal!.name })),
+    [nextMenu]
+  );
+
   const handleAdd = () => {
     if (!newItemName.trim()) return;
     addExtraItem(newItemName, newItemRayon);
     setNewItemName('');
+  };
+
+  const handleAiUpdate = async () => {
+    if (mealsMissingIngredients.length === 0 || aiLoading) return;
+    setAiLoading(true);
+    try {
+      const results = await fetchAiIngredients(mealsMissingIngredients);
+      applyAiIngredients(results);
+    } catch (e) {
+      notify('Erreur', e instanceof Error ? e.message : "La génération a échoué, réessaie plus tard.");
+    } finally {
+      setAiLoading(false);
+    }
   };
 
   return (
@@ -39,6 +60,16 @@ export default function CoursesScreen() {
           </Pressable>
         </View>
       </View>
+
+      {isAiShoppingConfigured && mealsMissingIngredients.length > 0 && (
+        <Pressable onPress={handleAiUpdate} disabled={aiLoading} style={[styles.aiButton, aiLoading && styles.aiButtonDisabled]}>
+          {aiLoading ? (
+            <ActivityIndicator color={colors.accent} size="small" />
+          ) : (
+            <Text style={styles.aiButtonText}>✨ Mettre à jour avec l'IA</Text>
+          )}
+        </Pressable>
+      )}
 
       {hasItems ? (
         <>
@@ -78,6 +109,22 @@ export default function CoursesScreen() {
 }
 
 const styles = StyleSheet.create({
+  aiButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.accentSoft,
+    borderRadius: radii.input,
+    paddingVertical: 12,
+    marginBottom: 16,
+  },
+  aiButtonDisabled: {
+    opacity: 0.6,
+  },
+  aiButtonText: {
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 14,
+    color: colors.accent,
+  },
   addForm: {
     gap: 8,
     marginBottom: 16,

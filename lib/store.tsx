@@ -65,6 +65,7 @@ type StoreValue = State & {
   addIdea: (name: string, desc: string, link: string) => void;
   removeIdea: (id: number) => void;
   mealFromIdea: (idea: Idea) => MealRef;
+  applyAiIngredients: (results: { id: string; ingredients: Ingredient[] }[]) => void;
 };
 
 const StoreContext = createContext<StoreValue | null>(null);
@@ -222,6 +223,20 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const mealFromIdea = useCallback((idea: Idea) => ideaToMealRef(idea), []);
 
+  const applyAiIngredients = useCallback(
+    (results: { id: string; ingredients: Ingredient[] }[]) => {
+      const byId = new Map(results.map((r) => [r.id, r.ingredients]));
+      commit((s) => ({
+        ...s,
+        nextMenu: s.nextMenu.map((sl) => {
+          const ingredients = sl.meal ? byId.get(sl.meal.id) : undefined;
+          return ingredients && sl.meal ? { ...sl, meal: { ...sl.meal, ingredients } } : sl;
+        }),
+      }));
+    },
+    [commit]
+  );
+
   const value = useMemo<StoreValue>(
     () => ({
       ...state,
@@ -237,8 +252,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       addIdea,
       removeIdea,
       mealFromIdea,
+      applyAiIngredients,
     }),
-    [state, loading, toggleDone, startNewWeek, assignToFirstEmpty, clearSlot, assignToSlot, toggleShoppingItem, addExtraItem, removeExtraItem, addIdea, removeIdea, mealFromIdea]
+    [state, loading, toggleDone, startNewWeek, assignToFirstEmpty, clearSlot, assignToSlot, toggleShoppingItem, addExtraItem, removeExtraItem, addIdea, removeIdea, mealFromIdea, applyAiIngredients]
   );
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
