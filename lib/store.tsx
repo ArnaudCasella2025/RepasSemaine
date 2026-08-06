@@ -10,10 +10,11 @@ export type MealRef = {
   ingredients: Ingredient[];
 };
 
-export type WeekDay = { day: string; meal: MealRef; done: boolean };
+export type WeekDay = { day: string; meal: MealRef | null; done: boolean };
 export type NextMenuSlot = { day: string; meal: MealRef | null };
 export type Idea = { id: number; name: string; desc: string; link: string };
 export type ExtraItem = { id: number; name: string; rayon: Rayon };
+export type HistoryEntry = { mealId: string; name: string; tag: string; ingredients: Ingredient[]; weekStartedAt: number };
 
 const toMealRef = (id: string): MealRef => {
   const m = MEALS_CATALOG[id];
@@ -33,6 +34,7 @@ type State = {
   ideas: Idea[];
   shoppingChecked: Record<string, boolean>;
   extraItems: ExtraItem[];
+  history: HistoryEntry[];
 };
 
 const initialWeekMeals = ['bolo', 'poulet', 'curry', 'saumon', 'chili', 'quiche', 'risotto'];
@@ -47,11 +49,13 @@ const initialState: State = {
   ],
   shoppingChecked: {},
   extraItems: [],
+  history: [],
 };
 
 type StoreValue = State & {
   loading: boolean;
   toggleDone: (index: number) => void;
+  startNewWeek: () => void;
   assignToFirstEmpty: (meal: MealRef) => void;
   clearSlot: (index: number) => void;
   assignToSlot: (index: number, meal: MealRef) => void;
@@ -119,6 +123,26 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     },
     [commit]
   );
+
+  const startNewWeek = useCallback(() => {
+    commit((s) => {
+      const now = Date.now();
+      const newHistory = [...s.history];
+      s.nextMenu.forEach((slot) => {
+        if (slot.meal) {
+          newHistory.push({ mealId: slot.meal.id, name: slot.meal.name, tag: slot.meal.tag, ingredients: slot.meal.ingredients, weekStartedAt: now });
+        }
+      });
+      return {
+        ...s,
+        week: s.nextMenu.map((slot) => ({ day: slot.day, meal: slot.meal, done: false })),
+        nextMenu: DAYS.map((day) => ({ day, meal: null })),
+        history: newHistory,
+        shoppingChecked: {},
+        extraItems: [],
+      };
+    });
+  }, [commit]);
 
   const assignToFirstEmpty = useCallback(
     (meal: MealRef) => {
@@ -203,6 +227,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       ...state,
       loading,
       toggleDone,
+      startNewWeek,
       assignToFirstEmpty,
       clearSlot,
       assignToSlot,
@@ -213,7 +238,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       removeIdea,
       mealFromIdea,
     }),
-    [state, loading, toggleDone, assignToFirstEmpty, clearSlot, assignToSlot, toggleShoppingItem, addExtraItem, removeExtraItem, addIdea, removeIdea, mealFromIdea]
+    [state, loading, toggleDone, startNewWeek, assignToFirstEmpty, clearSlot, assignToSlot, toggleShoppingItem, addExtraItem, removeExtraItem, addIdea, removeIdea, mealFromIdea]
   );
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;

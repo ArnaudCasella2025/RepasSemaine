@@ -1,21 +1,23 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { FormInput } from '../../components/FormInput';
 import { MenuSlot } from '../../components/MenuSlot';
 import { ScreenShell } from '../../components/ScreenShell';
 import { SuggestionCard } from '../../components/SuggestionCard';
-import { BALANCE_ORDER, QUICK_ORDER, USUAL_ORDER } from '../../lib/meals';
+import { BALANCE_ORDER, QUICK_ORDER } from '../../lib/meals';
+import { buildHabitSuggestions } from '../../lib/selectors';
 import { makeCustomMealRef, mealRefFromCatalog, useStore } from '../../lib/store';
 import { colors, fonts, radii } from '../../lib/theme';
 
 export default function MenuScreen() {
-  const { nextMenu, ideas, assignToFirstEmpty, clearSlot, assignToSlot, mealFromIdea } = useStore();
+  const { nextMenu, ideas, history, assignToFirstEmpty, clearSlot, assignToSlot, mealFromIdea } = useStore();
   const [pickerSlot, setPickerSlot] = useState<number | null>(null);
   const [customName, setCustomName] = useState('');
   const [customDesc, setCustomDesc] = useState('');
   const [customLink, setCustomLink] = useState('');
 
   const filledCount = nextMenu.filter((s) => s.meal).length;
+  const habitSuggestions = useMemo(() => buildHabitSuggestions(history, nextMenu), [history, nextMenu]);
 
   const closePicker = () => {
     setPickerSlot(null);
@@ -93,12 +95,15 @@ export default function MenuScreen() {
       </ScrollView>
 
       <Text style={styles.sectionTitle}>Vos habitudes</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.suggestionsRow}>
-        {USUAL_ORDER.map((id) => {
-          const meal = mealRefFromCatalog(id);
-          return <SuggestionCard key={id} name={meal.name} tag={meal.tag} onPress={() => assignToFirstEmpty(meal)} />;
-        })}
-      </ScrollView>
+      {habitSuggestions.length > 0 ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.suggestionsRow}>
+          {habitSuggestions.map((meal) => (
+            <SuggestionCard key={meal.id} name={meal.name} tag={meal.tag} onPress={() => assignToFirstEmpty(meal)} />
+          ))}
+        </ScrollView>
+      ) : (
+        <Text style={styles.emptyHabitsText}>Pas de nouvelle suggestion pour l'instant — variez encore un peu avant qu'on en propose à nouveau.</Text>
+      )}
 
       <Text style={styles.sectionTitle}>Pour rééquilibrer</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.suggestionsRow}>
@@ -199,6 +204,12 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   suggestionsRow: {
+    marginBottom: 20,
+  },
+  emptyHabitsText: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: colors.textMuted,
     marginBottom: 20,
   },
 });

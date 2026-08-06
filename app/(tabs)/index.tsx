@@ -2,12 +2,24 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { CheckIcon } from '../../components/icons';
 import { ProgressBar } from '../../components/ProgressBar';
 import { ScreenShell } from '../../components/ScreenShell';
+import { confirmAction } from '../../lib/confirm';
 import { useStore } from '../../lib/store';
-import { colors, fonts } from '../../lib/theme';
+import { colors, fonts, radii } from '../../lib/theme';
 
 export default function SemaineScreen() {
-  const { week, toggleDone } = useStore();
+  const { week, nextMenu, toggleDone, startNewWeek } = useStore();
   const doneCount = week.filter((d) => d.done).length;
+  const plannedCount = nextMenu.filter((s) => s.meal).length;
+
+  const confirmNewWeek = () => {
+    confirmAction(
+      'Nouvelle semaine',
+      plannedCount < 7
+        ? `Seuls ${plannedCount}/7 repas sont planifiés pour la semaine prochaine. Continuer quand même ?`
+        : 'Le menu prévu devient la semaine en cours. Continuer ?',
+      startNewWeek
+    );
+  };
 
   return (
     <ScreenShell title="Cette semaine" subtitle="Coche les repas au fur et à mesure">
@@ -18,6 +30,7 @@ export default function SemaineScreen() {
       {week.map((d, i) => (
         <View key={d.day} style={styles.card}>
           <Pressable
+            disabled={!d.meal}
             onPress={() => toggleDone(i)}
             style={[styles.checkbox, { borderColor: d.done ? colors.done : colors.checkboxBorder, backgroundColor: d.done ? colors.done : 'transparent' }]}
           >
@@ -25,13 +38,19 @@ export default function SemaineScreen() {
           </Pressable>
           <View style={styles.info}>
             <Text style={styles.day}>{d.day.toUpperCase()}</Text>
-            <Text style={[styles.mealName, d.done && styles.mealNameDone]}>{d.meal.name}</Text>
+            <Text style={[styles.mealName, d.done && styles.mealNameDone, !d.meal && styles.mealNameEmpty]}>{d.meal ? d.meal.name : 'Non planifié'}</Text>
           </View>
-          <View style={styles.tag}>
-            <Text style={styles.tagText}>{d.meal.tag}</Text>
-          </View>
+          {d.meal && (
+            <View style={styles.tag}>
+              <Text style={styles.tagText}>{d.meal.tag}</Text>
+            </View>
+          )}
         </View>
       ))}
+
+      <Pressable onPress={confirmNewWeek} style={styles.newWeekButton}>
+        <Text style={styles.newWeekButtonText}>Nouvelle semaine →</Text>
+      </Pressable>
     </ScreenShell>
   );
 }
@@ -79,12 +98,30 @@ const styles = StyleSheet.create({
     textDecorationLine: 'line-through',
     color: colors.textFaint,
   },
+  mealNameEmpty: {
+    color: colors.textPlaceholder,
+    fontFamily: fonts.body,
+  },
   tag: {
     backgroundColor: colors.accentSoft,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 999,
     flexShrink: 0,
+  },
+  newWeekButton: {
+    alignItems: 'center',
+    borderRadius: radii.cardSm,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: colors.dashedBorder,
+    paddingVertical: 13,
+    marginTop: 4,
+  },
+  newWeekButtonText: {
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 15,
+    color: colors.accent,
   },
   tagText: {
     fontFamily: fonts.body,
