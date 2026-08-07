@@ -21,8 +21,16 @@ if (isFirebaseConfigured) {
   app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
   auth = getAuth(app);
   // React Native's networking layer doesn't reliably support Firestore's default
-  // streaming (WebChannel) transport, so fall back to long-polling.
-  db = initializeFirestore(app, { experimentalAutoDetectLongPolling: true });
+  // streaming (WebChannel) transport, so fall back to long-polling. Safari fails
+  // that long-polling transport's fetch()-based implementation with a CORS-like
+  // "access control checks" error; useFetchStreams forces the older XHR-based
+  // implementation instead, which Safari handles fine. It's a real, working
+  // option supported by the SDK at runtime, just not exposed on the public
+  // settings type — hence the cast.
+  db = initializeFirestore(app, {
+    experimentalAutoDetectLongPolling: true,
+    useFetchStreams: false,
+  } as Parameters<typeof initializeFirestore>[1]);
 }
 
 export { auth, db };
