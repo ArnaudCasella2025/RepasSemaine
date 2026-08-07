@@ -88,7 +88,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         if (cancelled) return;
         unsub = onSnapshot(ref, (snap) => {
           if (snap.exists()) {
-            const data = snap.data() as State;
+            // Merge over defaults so a household document saved before a field
+            // existed (e.g. `history`, added later) doesn't come back as
+            // `undefined` and crash code that expects an array/object there.
+            const data = { ...initialState, ...(snap.data() as Partial<State>) };
             stateRef.current = data;
             setStateRaw(data);
             setLoading(false);
