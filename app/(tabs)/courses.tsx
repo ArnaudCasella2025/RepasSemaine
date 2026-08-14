@@ -9,9 +9,11 @@ import { ShoppingItemRow } from '../../components/ShoppingItemRow';
 import { fetchAiIngredients, isAiShoppingConfigured } from '../../lib/aiShoppingList';
 import { notify } from '../../lib/alert';
 import { RAYONS, Rayon } from '../../lib/meals';
-import { buildShoppingGroups } from '../../lib/selectors';
+import { buildShoppingGroups, buildShoppingGroupsByMeal } from '../../lib/selectors';
 import { useStore } from '../../lib/store';
 import { colors, fonts, radii } from '../../lib/theme';
+
+type GroupMode = 'rayon' | 'meal';
 
 export default function CoursesScreen() {
   const router = useRouter();
@@ -19,8 +21,11 @@ export default function CoursesScreen() {
   const [newItemName, setNewItemName] = useState('');
   const [newItemRayon, setNewItemRayon] = useState<Rayon>(RAYONS[0]);
   const [aiLoading, setAiLoading] = useState(false);
+  const [groupMode, setGroupMode] = useState<GroupMode>('rayon');
 
-  const groups = useMemo(() => buildShoppingGroups(nextMenu, extraItems), [nextMenu, extraItems]);
+  const rayonGroups = useMemo(() => buildShoppingGroups(nextMenu, extraItems), [nextMenu, extraItems]);
+  const mealGroups = useMemo(() => buildShoppingGroupsByMeal(nextMenu, extraItems), [nextMenu, extraItems]);
+  const groups = groupMode === 'rayon' ? rayonGroups : mealGroups;
   const hasItems = groups.length > 0;
   const filledCount = nextMenu.filter((s) => s.meal).length;
   const menuComplete = filledCount === 7;
@@ -79,9 +84,18 @@ export default function CoursesScreen() {
             </View>
           )}
 
+          <View style={styles.modeSwitch}>
+            <Pressable onPress={() => setGroupMode('rayon')} style={[styles.modeButton, groupMode === 'rayon' && styles.modeButtonActive]}>
+              <Text style={[styles.modeButtonText, groupMode === 'rayon' && styles.modeButtonTextActive]}>Par rayon</Text>
+            </Pressable>
+            <Pressable onPress={() => setGroupMode('meal')} style={[styles.modeButton, groupMode === 'meal' && styles.modeButtonActive]}>
+              <Text style={[styles.modeButtonText, groupMode === 'meal' && styles.modeButtonTextActive]}>Par repas</Text>
+            </Pressable>
+          </View>
+
           {groups.map((group) => (
-            <View key={group.rayon} style={styles.group}>
-              <Text style={styles.groupTitle}>{group.rayon}</Text>
+            <View key={group.key} style={styles.group}>
+              <Text style={styles.groupTitle}>{group.title}</Text>
               {group.items.map((item) => (
                 <ShoppingItemRow
                   key={item.name}
@@ -148,6 +162,31 @@ const styles = StyleSheet.create({
   },
   progressWrap: {
     marginBottom: 16,
+  },
+  modeSwitch: {
+    flexDirection: 'row',
+    backgroundColor: colors.accentSoft,
+    borderRadius: radii.input,
+    padding: 3,
+    marginBottom: 18,
+  },
+  modeButton: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: radii.input - 3,
+    alignItems: 'center',
+  },
+  modeButtonActive: {
+    backgroundColor: colors.surface,
+  },
+  modeButtonText: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 13,
+    color: colors.textMuted,
+  },
+  modeButtonTextActive: {
+    fontFamily: fonts.bodySemiBold,
+    color: colors.accent,
   },
   group: {
     marginBottom: 18,

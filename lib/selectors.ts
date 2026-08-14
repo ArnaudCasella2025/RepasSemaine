@@ -2,7 +2,7 @@ import { RAYONS, Rayon, USUAL_ORDER } from './meals';
 import { ExtraItem, HistoryEntry, MealRef, NextMenuSlot, mealRefFromCatalog } from './store';
 
 export type ShoppingRow = { name: string; extraId: number | null };
-export type ShoppingGroup = { rayon: Rayon; items: ShoppingRow[] };
+export type ShoppingGroup = { key: string; title: string; items: ShoppingRow[] };
 
 export function buildShoppingGroups(nextMenu: NextMenuSlot[], extraItems: ExtraItem[]): ShoppingGroup[] {
   const byRayon: Partial<Record<Rayon, Map<string, number | null>>> = {};
@@ -21,9 +21,38 @@ export function buildShoppingGroups(nextMenu: NextMenuSlot[], extraItems: ExtraI
   });
 
   return RAYONS.filter((r) => byRayon[r] && byRayon[r]!.size > 0).map((r) => ({
-    rayon: r,
+    key: r,
+    title: r,
     items: [...byRayon[r]!.entries()].map(([name, extraId]) => ({ name, extraId })),
   }));
+}
+
+// Same shopping list, grouped by the recipe each ingredient comes from
+// instead of by aisle. Extra items typed in by hand have no recipe, so they
+// land in a trailing "Autre" group.
+export function buildShoppingGroupsByMeal(nextMenu: NextMenuSlot[], extraItems: ExtraItem[]): ShoppingGroup[] {
+  const groups: ShoppingGroup[] = [];
+  const seenMealIds = new Set<string>();
+
+  nextMenu.forEach((slot) => {
+    if (!slot.meal || seenMealIds.has(slot.meal.id) || slot.meal.ingredients.length === 0) return;
+    seenMealIds.add(slot.meal.id);
+    groups.push({
+      key: slot.meal.id,
+      title: slot.meal.name,
+      items: slot.meal.ingredients.map(({ name }) => ({ name, extraId: null })),
+    });
+  });
+
+  if (extraItems.length > 0) {
+    groups.push({
+      key: '__autre__',
+      title: 'Autre',
+      items: extraItems.map((item) => ({ name: item.name, extraId: item.id })),
+    });
+  }
+
+  return groups;
 }
 
 // A meal shouldn't be suggested again as a "habit" until this much time has

@@ -39,7 +39,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bodySemiBold,
     fontSize: 12,
     color: colors.accent,
-    width: 52,
+    width: 74,
     flexShrink: 0,
   },
   label: {
