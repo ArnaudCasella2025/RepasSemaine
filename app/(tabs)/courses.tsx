@@ -9,15 +9,57 @@ import { ShoppingItemRow } from '../../components/ShoppingItemRow';
 import { fetchAiIngredients, isAiShoppingConfigured } from '../../lib/aiShoppingList';
 import { notify } from '../../lib/alert';
 import { RAYONS, Rayon } from '../../lib/meals';
-import { buildShoppingGroups, buildShoppingGroupsByMeal } from '../../lib/selectors';
+import { buildShoppingGroups, buildShoppingGroupsByMeal, ShoppingRow } from '../../lib/selectors';
 import { useStore } from '../../lib/store';
 import { colors, fonts, radii } from '../../lib/theme';
 
 type GroupMode = 'rayon' | 'meal';
 
+function AddIngredientForm({ onAdd }: { onAdd: (name: string, rayon: Rayon) => void }) {
+  const [name, setName] = useState('');
+  const [rayon, setRayon] = useState<Rayon>(RAYONS[0]);
+
+  const handleAdd = () => {
+    if (!name.trim()) return;
+    onAdd(name, rayon);
+    setName('');
+  };
+
+  return (
+    <View style={styles.addIngredientRow}>
+      <FormInput
+        value={name}
+        onChangeText={setName}
+        onSubmitEditing={handleAdd}
+        placeholder="Ajouter un ingrédient"
+        bg={colors.background}
+        style={styles.addIngredientInput}
+      />
+      <View style={styles.addIngredientRayon}>
+        <RayonSelect value={rayon} options={RAYONS} onChange={setRayon} />
+      </View>
+      <Pressable onPress={handleAdd} style={styles.addIngredientButton}>
+        <Text style={styles.addIngredientButtonText}>+</Text>
+      </Pressable>
+    </View>
+  );
+}
+
 export default function CoursesScreen() {
   const router = useRouter();
-  const { nextMenu, extraItems, shoppingChecked, toggleShoppingItem, addExtraItem, removeExtraItem, applyAiIngredients } = useStore();
+  const {
+    nextMenu,
+    extraItems,
+    shoppingChecked,
+    toggleShoppingItem,
+    addExtraItem,
+    removeExtraItem,
+    renameExtraItem,
+    addMealIngredient,
+    renameMealIngredient,
+    removeMealIngredient,
+    applyAiIngredients,
+  } = useStore();
   const [newItemName, setNewItemName] = useState('');
   const [newItemRayon, setNewItemRayon] = useState<Rayon>(RAYONS[0]);
   const [aiLoading, setAiLoading] = useState(false);
@@ -26,7 +68,10 @@ export default function CoursesScreen() {
   const rayonGroups = useMemo(() => buildShoppingGroups(nextMenu, extraItems), [nextMenu, extraItems]);
   const mealGroups = useMemo(() => buildShoppingGroupsByMeal(nextMenu, extraItems), [nextMenu, extraItems]);
   const groups = groupMode === 'rayon' ? rayonGroups : mealGroups;
-  const hasItems = groups.length > 0;
+  // mealGroups can include a meal with no ingredients yet (just so it has a
+  // place to add some), so checking either list covers "is there anything to
+  // show at all" regardless of which mode is currently selected.
+  const hasItems = rayonGroups.length > 0 || mealGroups.length > 0;
   const filledCount = nextMenu.filter((s) => s.meal).length;
   const menuComplete = filledCount === 7;
 
@@ -52,6 +97,20 @@ export default function CoursesScreen() {
     } finally {
       setAiLoading(false);
     }
+  };
+
+  // A row can be backed by an extra item, one or more meals' ingredient
+  // lists, or both at once (same name typed by hand and present in a
+  // recipe) — rename/remove apply everywhere the name shows up so the two
+  // grouping modes never fall out of sync with each other.
+  const handleRename = (row: ShoppingRow, newName: string) => {
+    if (row.extraId != null) renameExtraItem(row.extraId, newName);
+    row.mealIds.forEach((mealId) => renameMealIngredient(mealId, row.name, newName));
+  };
+
+  const handleRemove = (row: ShoppingRow) => {
+    if (row.extraId != null) removeExtraItem(row.extraId);
+    row.mealIds.forEach((mealId) => removeMealIngredient(mealId, row.name));
   };
 
   return (
@@ -101,11 +160,14 @@ export default function CoursesScreen() {
                   key={item.name}
                   name={item.name}
                   checked={!!shoppingChecked[item.name]}
-                  removable={item.extraId != null}
                   onToggle={() => toggleShoppingItem(item.name)}
-                  onRemove={item.extraId != null ? () => removeExtraItem(item.extraId!) : undefined}
+                  onRemove={() => handleRemove(item)}
+                  onRename={(newName) => handleRename(item, newName)}
                 />
               ))}
+              {groupMode === 'meal' && group.key !== '__autre__' && (
+                <AddIngredientForm onAdd={(name, rayon) => addMealIngredient(group.key, name, rayon)} />
+              )}
             </View>
           ))}
         </>
@@ -196,6 +258,33 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.accent,
     marginBottom: 8,
+  },
+  addIngredientRow: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
+  },
+  addIngredientInput: {
+    flex: 1,
+  },
+  addIngredientRayon: {
+    width: 128,
+    flexShrink: 0,
+  },
+  addIngredientButton: {
+    width: 38,
+    height: 38,
+    borderRadius: radii.input,
+    backgroundColor: colors.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  addIngredientButtonText: {
+    fontFamily: fonts.bodySemiBold,
+    fontSize: 18,
+    lineHeight: 20,
+    color: colors.white,
   },
   empty: {
     alignItems: 'center',

@@ -1,29 +1,43 @@
 import { RAYONS, Rayon, USUAL_ORDER } from './meals';
 import { ExtraItem, HistoryEntry, MealRef, NextMenuSlot, mealRefFromCatalog } from './store';
 
-export type ShoppingRow = { name: string; extraId: number | null };
+// `mealIds` lists every meal in this week's menu that contributes this
+// ingredient (usually one, but the same ingredient name can come from
+// several recipes at once) — renaming/removing a row has to apply to all
+// of them so the two grouping modes stay consistent with each other.
+export type ShoppingRow = { name: string; extraId: number | null; mealIds: string[] };
 export type ShoppingGroup = { key: string; title: string; items: ShoppingRow[] };
 
 export function buildShoppingGroups(nextMenu: NextMenuSlot[], extraItems: ExtraItem[]): ShoppingGroup[] {
-  const byRayon: Partial<Record<Rayon, Map<string, number | null>>> = {};
+  const byRayon: Partial<Record<Rayon, Map<string, { extraId: number | null; mealIds: string[] }>>> = {};
 
   nextMenu.forEach((slot) => {
     if (!slot.meal) return;
+    const mealId = slot.meal.id;
     slot.meal.ingredients.forEach(({ name, rayon }) => {
       if (!byRayon[rayon]) byRayon[rayon] = new Map();
-      if (!byRayon[rayon]!.has(name)) byRayon[rayon]!.set(name, null);
+      const map = byRayon[rayon]!;
+      const existing = map.get(name);
+      if (existing) {
+        if (!existing.mealIds.includes(mealId)) existing.mealIds.push(mealId);
+      } else {
+        map.set(name, { extraId: null, mealIds: [mealId] });
+      }
     });
   });
 
   extraItems.forEach((item) => {
     if (!byRayon[item.rayon]) byRayon[item.rayon] = new Map();
-    byRayon[item.rayon]!.set(item.name, item.id);
+    const map = byRayon[item.rayon]!;
+    const existing = map.get(item.name);
+    if (existing) existing.extraId = item.id;
+    else map.set(item.name, { extraId: item.id, mealIds: [] });
   });
 
   return RAYONS.filter((r) => byRayon[r] && byRayon[r]!.size > 0).map((r) => ({
     key: r,
     title: r,
-    items: [...byRayon[r]!.entries()].map(([name, extraId]) => ({ name, extraId })),
+    items: [...byRayon[r]!.entries()].map(([name, info]) => ({ name, extraId: info.extraId, mealIds: info.mealIds })),
   }));
 }
 
@@ -35,12 +49,13 @@ export function buildShoppingGroupsByMeal(nextMenu: NextMenuSlot[], extraItems: 
   const seenMealIds = new Set<string>();
 
   nextMenu.forEach((slot) => {
-    if (!slot.meal || seenMealIds.has(slot.meal.id) || slot.meal.ingredients.length === 0) return;
+    if (!slot.meal || seenMealIds.has(slot.meal.id)) return;
     seenMealIds.add(slot.meal.id);
+    const mealId = slot.meal.id;
     groups.push({
-      key: slot.meal.id,
+      key: mealId,
       title: slot.meal.name,
-      items: slot.meal.ingredients.map(({ name }) => ({ name, extraId: null })),
+      items: slot.meal.ingredients.map(({ name }) => ({ name, extraId: null, mealIds: [mealId] })),
     });
   });
 
@@ -48,7 +63,7 @@ export function buildShoppingGroupsByMeal(nextMenu: NextMenuSlot[], extraItems: 
     groups.push({
       key: '__autre__',
       title: 'Autre',
-      items: extraItems.map((item) => ({ name: item.name, extraId: item.id })),
+      items: extraItems.map((item) => ({ name: item.name, extraId: item.id, mealIds: [] })),
     });
   }
 

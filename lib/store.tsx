@@ -62,6 +62,10 @@ type StoreValue = State & {
   toggleShoppingItem: (name: string) => void;
   addExtraItem: (name: string, rayon: Rayon) => void;
   removeExtraItem: (id: number) => void;
+  renameExtraItem: (id: number, name: string) => void;
+  addMealIngredient: (mealId: string, name: string, rayon: Rayon) => void;
+  renameMealIngredient: (mealId: string, oldName: string, newName: string) => void;
+  removeMealIngredient: (mealId: string, name: string) => void;
   addIdea: (name: string, desc: string, link: string) => void;
   removeIdea: (id: number) => void;
   mealFromIdea: (idea: Idea) => MealRef;
@@ -205,6 +209,58 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     [commit]
   );
 
+  const renameExtraItem = useCallback(
+    (id: number, name: string) => {
+      const trimmed = name.trim();
+      if (!trimmed) return;
+      commit((s) => ({ ...s, extraItems: s.extraItems.map((i) => (i.id === id ? { ...i, name: trimmed } : i)) }));
+    },
+    [commit]
+  );
+
+  // Ingredients baked into a meal only apply to the meal's occurrences in
+  // *this* week's menu (nextMenu), not the shared catalog recipe, so a
+  // household can tweak "what to buy for this week's lasagna" without
+  // changing the lasagna recipe for everyone forever.
+  const updateMealIngredients = useCallback(
+    (mealId: string, updater: (ingredients: Ingredient[]) => Ingredient[]) => {
+      commit((s) => ({
+        ...s,
+        nextMenu: s.nextMenu.map((slot) =>
+          slot.meal && slot.meal.id === mealId ? { ...slot, meal: { ...slot.meal, ingredients: updater(slot.meal.ingredients) } } : slot
+        ),
+      }));
+    },
+    [commit]
+  );
+
+  const addMealIngredient = useCallback(
+    (mealId: string, name: string, rayon: Rayon) => {
+      const trimmed = name.trim();
+      if (!trimmed) return;
+      updateMealIngredients(mealId, (ingredients) =>
+        ingredients.some((i) => i.name === trimmed) ? ingredients : [...ingredients, { name: trimmed, rayon }]
+      );
+    },
+    [updateMealIngredients]
+  );
+
+  const renameMealIngredient = useCallback(
+    (mealId: string, oldName: string, newName: string) => {
+      const trimmed = newName.trim();
+      if (!trimmed) return;
+      updateMealIngredients(mealId, (ingredients) => ingredients.map((i) => (i.name === oldName ? { ...i, name: trimmed } : i)));
+    },
+    [updateMealIngredients]
+  );
+
+  const removeMealIngredient = useCallback(
+    (mealId: string, name: string) => {
+      updateMealIngredients(mealId, (ingredients) => ingredients.filter((i) => i.name !== name));
+    },
+    [updateMealIngredients]
+  );
+
   const addIdea = useCallback(
     (name: string, desc: string, link: string) => {
       const trimmed = name.trim();
@@ -252,12 +308,35 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       toggleShoppingItem,
       addExtraItem,
       removeExtraItem,
+      renameExtraItem,
+      addMealIngredient,
+      renameMealIngredient,
+      removeMealIngredient,
       addIdea,
       removeIdea,
       mealFromIdea,
       applyAiIngredients,
     }),
-    [state, loading, toggleDone, startNewWeek, assignToFirstEmpty, clearSlot, assignToSlot, toggleShoppingItem, addExtraItem, removeExtraItem, addIdea, removeIdea, mealFromIdea, applyAiIngredients]
+    [
+      state,
+      loading,
+      toggleDone,
+      startNewWeek,
+      assignToFirstEmpty,
+      clearSlot,
+      assignToSlot,
+      toggleShoppingItem,
+      addExtraItem,
+      removeExtraItem,
+      renameExtraItem,
+      addMealIngredient,
+      renameMealIngredient,
+      removeMealIngredient,
+      addIdea,
+      removeIdea,
+      mealFromIdea,
+      applyAiIngredients,
+    ]
   );
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;

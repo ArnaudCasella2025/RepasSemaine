@@ -1,32 +1,64 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { CheckIcon } from './icons';
 import { colors, fonts } from '../lib/theme';
 
 export function ShoppingItemRow({
   name,
   checked,
-  removable,
   onToggle,
   onRemove,
+  onRename,
 }: {
   name: string;
   checked: boolean;
-  removable: boolean;
   onToggle: () => void;
-  onRemove?: () => void;
+  onRemove: () => void;
+  onRename: (newName: string) => void;
 }) {
-  return (
-    <Pressable onPress={onToggle} style={styles.row}>
-      <View style={[styles.checkbox, { borderColor: checked ? colors.done : colors.checkboxBorder, backgroundColor: checked ? colors.done : 'transparent' }]}>
-        {checked && <CheckIcon size={12} color="white" />}
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(name);
+
+  const startEditing = () => {
+    setDraft(name);
+    setEditing(true);
+  };
+
+  const commitEdit = () => {
+    const trimmed = draft.trim();
+    if (trimmed && trimmed !== name) onRename(trimmed);
+    setEditing(false);
+  };
+
+  if (editing) {
+    return (
+      <View style={styles.row}>
+        <TextInput
+          value={draft}
+          onChangeText={setDraft}
+          onSubmitEditing={commitEdit}
+          onBlur={commitEdit}
+          autoFocus
+          style={styles.editInput}
+        />
       </View>
-      <Text style={[styles.name, checked && styles.nameChecked]}>{name}</Text>
-      {removable && (
-        <Pressable onPress={onRemove} hitSlop={8} style={styles.removeBtn}>
-          <Text style={styles.removeText}>✕</Text>
-        </Pressable>
-      )}
-    </Pressable>
+    );
+  }
+
+  return (
+    <View style={styles.row}>
+      <Pressable onPress={onToggle} style={styles.checkboxTap} hitSlop={4}>
+        <View style={[styles.checkbox, { borderColor: checked ? colors.done : colors.checkboxBorder, backgroundColor: checked ? colors.done : 'transparent' }]}>
+          {checked && <CheckIcon size={12} color="white" />}
+        </View>
+      </Pressable>
+      <Pressable onPress={startEditing} style={styles.nameTap}>
+        <Text style={[styles.name, checked && styles.nameChecked]}>{name}</Text>
+      </Pressable>
+      <Pressable onPress={onRemove} hitSlop={8} style={styles.removeBtn}>
+        <Text style={styles.removeText}>✕</Text>
+      </Pressable>
+    </View>
   );
 }
 
@@ -43,6 +75,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.cardBorder,
   },
+  checkboxTap: {
+    flexShrink: 0,
+  },
   checkbox: {
     width: 22,
     height: 22,
@@ -50,10 +85,11 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
-    flexShrink: 0,
+  },
+  nameTap: {
+    flex: 1,
   },
   name: {
-    flex: 1,
     fontFamily: fonts.body,
     fontSize: 15,
     color: colors.text,
@@ -61,6 +97,13 @@ const styles = StyleSheet.create({
   nameChecked: {
     textDecorationLine: 'line-through',
     color: colors.textFaint,
+  },
+  editInput: {
+    flex: 1,
+    fontFamily: fonts.body,
+    fontSize: 15,
+    color: colors.text,
+    padding: 0,
   },
   removeBtn: {
     padding: 4,
