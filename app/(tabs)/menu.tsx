@@ -4,6 +4,7 @@ import { FormInput } from '../../components/FormInput';
 import { MenuSlot } from '../../components/MenuSlot';
 import { ScreenShell } from '../../components/ScreenShell';
 import { SuggestionCard } from '../../components/SuggestionCard';
+import { confirmAction } from '../../lib/confirm';
 import { BALANCE_ORDER, QUICK_ORDER } from '../../lib/meals';
 import { buildHabitSuggestions } from '../../lib/selectors';
 import { makeCustomMealRef, mealRefFromCatalog, useStore } from '../../lib/store';
@@ -34,6 +35,12 @@ export default function MenuScreen() {
     closePicker();
   };
 
+  const confirmClearSlot = (index: number) => {
+    const meal = nextMenu[index].meal;
+    if (!meal) return;
+    confirmAction('Retirer ce repas', `Retirer "${meal.name}" du menu de ${nextMenu[index].day} ?`, () => clearSlot(index));
+  };
+
   return (
     <ScreenShell title="Semaine prochaine" subtitle="Compose ton menu">
       <Text style={styles.progressText}>{filledCount}/7 repas planifiés — touche une suggestion pour la placer</Text>
@@ -45,7 +52,7 @@ export default function MenuScreen() {
             day={slot.day}
             label={slot.meal ? slot.meal.name : '+ Choisir un repas'}
             filled={!!slot.meal}
-            onPress={() => (slot.meal ? clearSlot(i) : setPickerSlot(i))}
+            onPress={() => (slot.meal ? confirmClearSlot(i) : setPickerSlot(i))}
           />
         ))}
       </View>
