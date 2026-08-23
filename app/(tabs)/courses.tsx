@@ -76,7 +76,10 @@ export default function CoursesScreen() {
   const menuComplete = filledCount === 7;
 
   const mealsMissingIngredients = useMemo(
-    () => nextMenu.filter((sl) => sl.meal && sl.meal.ingredients.length === 0).map((sl) => ({ id: sl.meal!.id, name: sl.meal!.name })),
+    () =>
+      nextMenu
+        .filter((sl) => sl.meal && sl.meal.ingredients.length === 0)
+        .map((sl) => ({ id: sl.meal!.id, name: sl.meal!.name, desc: sl.meal!.desc, link: sl.meal!.link })),
     [nextMenu]
   );
 

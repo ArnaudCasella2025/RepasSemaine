@@ -1,6 +1,8 @@
 # Worker IA — liste de courses
 
-Petit service Cloudflare Worker qui reçoit une liste de noms de repas, demande à Claude d'en déduire les ingrédients (regroupés par rayon), et les renvoie à l'appli. Il garde la clé API Anthropic côté serveur — jamais exposée au client.
+Petit service Cloudflare Worker qui reçoit une liste de repas (nom, et si disponibles une description et/ou un lien de recette), demande à Claude d'en déduire les ingrédients (regroupés par rayon), et les renvoie à l'appli. Il garde la clé API Anthropic côté serveur — jamais exposée au client.
+
+Quand un lien est fourni, le Worker essaie de le récupérer lui-même (titre, meta description, texte de la page) pour donner à Claude un vrai contenu de recette plutôt que de deviner à partir du seul nom du plat. Les pages qui nécessitent du JavaScript pour s'afficher (beaucoup de pages Instagram/Pinterest) ne renvoient souvent rien d'exploitable — dans ce cas le modèle se rabat sur le nom et la description.
 
 ## Déploiement (une fois)
 

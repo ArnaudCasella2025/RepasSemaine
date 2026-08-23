@@ -8,6 +8,10 @@ export type MealRef = {
   name: string;
   tag: string;
   ingredients: Ingredient[];
+  // Carried through from an idea or a hand-typed custom meal so the AI
+  // shopping list can read the recipe instead of guessing from the name alone.
+  desc?: string;
+  link?: string;
 };
 
 export type WeekDay = { day: string; meal: MealRef | null; done: boolean };
@@ -26,6 +30,8 @@ const ideaToMealRef = (idea: Idea): MealRef => ({
   name: idea.name,
   tag: 'Envie',
   ingredients: [],
+  desc: idea.desc.trim() || undefined,
+  link: idea.link.trim() || undefined,
 });
 
 type State = {
@@ -352,6 +358,13 @@ export function mealRefFromCatalog(id: string): MealRef {
   return toMealRef(id);
 }
 
-export function makeCustomMealRef(name: string): MealRef {
-  return { id: `custom_${Date.now()}`, name, tag: 'Personnalisé', ingredients: [] };
+export function makeCustomMealRef(name: string, desc?: string, link?: string): MealRef {
+  return {
+    id: `custom_${Date.now()}`,
+    name,
+    tag: 'Personnalisé',
+    ingredients: [],
+    desc: desc?.trim() || undefined,
+    link: link?.trim() || undefined,
+  };
 }

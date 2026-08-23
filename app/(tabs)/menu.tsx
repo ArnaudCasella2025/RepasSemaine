@@ -31,7 +31,7 @@ export default function MenuScreen() {
     if (pickerSlot === null) return;
     const name = customName.trim();
     if (!name) return;
-    assignToSlot(pickerSlot, makeCustomMealRef(name));
+    assignToSlot(pickerSlot, makeCustomMealRef(name, customDesc, customLink));
     closePicker();
   };
 

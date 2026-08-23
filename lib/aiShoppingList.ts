@@ -4,7 +4,9 @@ export type AiIngredientResult = { id: string; ingredients: Ingredient[] };
 
 export const isAiShoppingConfigured = !!(process.env.EXPO_PUBLIC_AI_WORKER_URL && process.env.EXPO_PUBLIC_APP_SECRET);
 
-export async function fetchAiIngredients(meals: { id: string; name: string }[]): Promise<AiIngredientResult[]> {
+export async function fetchAiIngredients(
+  meals: { id: string; name: string; desc?: string; link?: string }[]
+): Promise<AiIngredientResult[]> {
   const url = process.env.EXPO_PUBLIC_AI_WORKER_URL;
   const secret = process.env.EXPO_PUBLIC_APP_SECRET;
   if (!url || !secret) {
