@@ -21,7 +21,8 @@ async function callWorker<T>(body: Record<string, unknown>): Promise<T> {
 
   if (!res.ok) {
     const errBody = await res.json().catch(() => null);
-    throw new Error(errBody?.error || `Erreur du serveur (${res.status})`);
+    const message = errBody?.error || `Erreur du serveur (${res.status})`;
+    throw new Error(errBody?.detail ? `${message} : ${errBody.detail}` : message);
   }
 
   return res.json();

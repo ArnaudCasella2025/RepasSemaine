@@ -210,10 +210,15 @@ async function handleShoppingList(body: Record<string, unknown>, client: Anthrop
 
 type MealSummary = { name: string; tag: string };
 
+// Anthropic's structured-output JSON schema support doesn't reliably accept
+// numeric range keywords (minimum/maximum) — a schema using them was
+// rejected outright, surfacing as a generic "Anthropic API error" client
+// side. The 0-10 range is enforced by the prompt instead, and the result is
+// clamped defensively below.
 const BALANCE_SCHEMA = {
   type: 'object',
   properties: {
-    score: { type: 'integer', minimum: 0, maximum: 10 },
+    score: { type: 'integer' },
     comment: { type: 'string' },
   },
   required: ['score', 'comment'],
@@ -242,13 +247,15 @@ async function handleBalanceScore(body: Record<string, unknown>, client: Anthrop
     schema: BALANCE_SCHEMA,
     system:
       "Tu évalues l'équilibre nutritionnel d'un menu hebdomadaire pour un foyer français, à partir de la liste des repas prévus (nom et étiquette). " +
-      "Donne une note entière de 0 (très déséquilibré) à 10 (bien équilibré : bonne variété de sources de protéines - viande, poisson, œufs, légumineuses -, présence régulière de légumes, pas trop de plats gras/riches d'affilée, bonne diversité globale des plats). " +
+      "`score` doit être un entier STRICTEMENT compris entre 0 et 10 inclus (0 = très déséquilibré, 10 = bien équilibré : bonne variété de sources de protéines - viande, poisson, œufs, légumineuses -, présence régulière de légumes, pas trop de plats gras/riches d'affilée, bonne diversité globale des plats). N'utilise jamais une valeur en dehors de 0-10. " +
       'Donne aussi un commentaire court (1 à 2 phrases, en français, bienveillant et concret) qui explique la note et suggère si besoin une piste d\'amélioration simple.',
     content: JSON.stringify({ meals }),
   });
 
   if ('error' in result) return result.error;
-  return json(result.data);
+  const data = result.data as { score?: unknown; comment?: unknown };
+  const score = Math.max(0, Math.min(10, Math.round(Number(data.score) || 0)));
+  return json({ score, comment: typeof data.comment === 'string' ? data.comment : '' });
 }
 
 // ---------------------------------------------------------------------------
