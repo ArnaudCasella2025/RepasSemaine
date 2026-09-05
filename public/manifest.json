@@ -1,0 +1,12 @@
+{
+  "name": "Repas Semaine",
+  "short_name": "Repas Semaine",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f7f1e8",
+  "theme_color": "#b5622f",
+  "icons": [
+    { "src": "/icon.png", "sizes": "1024x1024", "type": "image/png", "purpose": "any" }
+  ]
+}
