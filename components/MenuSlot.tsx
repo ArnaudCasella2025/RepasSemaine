@@ -1,7 +1,19 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, fonts } from '../lib/theme';
 
-export function MenuSlot({ day, label, filled, onPress }: { day: string; label: string; filled: boolean; onPress: () => void }) {
+export function MenuSlot({
+  day,
+  label,
+  filled,
+  active,
+  onPress,
+}: {
+  day: string;
+  label: string;
+  filled: boolean;
+  active?: boolean;
+  onPress: () => void;
+}) {
   return (
     <Pressable
       onPress={onPress}
@@ -9,7 +21,7 @@ export function MenuSlot({ day, label, filled, onPress }: { day: string; label: 
         styles.slot,
         {
           backgroundColor: filled ? colors.surface : colors.emptySlotBg,
-          borderColor: filled ? 'transparent' : colors.dashedBorder,
+          borderColor: active ? colors.accent : filled ? 'transparent' : colors.dashedBorder,
           borderStyle: filled ? 'solid' : 'dashed',
         },
       ]}
@@ -17,8 +29,8 @@ export function MenuSlot({ day, label, filled, onPress }: { day: string; label: 
       <Text style={styles.day}>{day}</Text>
       <Text style={[styles.label, { color: filled ? colors.text : colors.textPlaceholder }]}>{label}</Text>
       {filled && (
-        <View style={styles.clearIcon}>
-          <Text style={styles.clearIconText}>✕</Text>
+        <View style={styles.chevron}>
+          <Text style={styles.chevronText}>{active ? '︿' : '›'}</Text>
         </View>
       )}
     </Pressable>
@@ -47,7 +59,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bodyMedium,
     fontSize: 15,
   },
-  clearIcon: {
+  chevron: {
     width: 22,
     height: 22,
     borderRadius: 11,
@@ -55,7 +67,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  clearIconText: {
+  chevronText: {
     fontSize: 13,
     color: colors.textMuted,
   },

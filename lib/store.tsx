@@ -1,7 +1,7 @@
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { ensureSignedIn, HOUSEHOLD_DOC_PATH, db } from './firebase';
-import { DAYS, Ingredient, MEALS_CATALOG, Rayon } from './meals';
+import { DAYS, Ingredient, MEALS_CATALOG, Rayon, normalizeMealName } from './meals';
 
 export type MealRef = {
   id: string;
@@ -41,6 +41,11 @@ type State = {
   shoppingChecked: Record<string, boolean>;
   extraItems: ExtraItem[];
   history: HistoryEntry[];
+  // Household-wide "recipe book": the last ingredient list saved for a given
+  // (normalized) meal name, keyed by normalizeMealName(). Reused the next
+  // time a meal with that name (or a trivial variant of it) is planned with
+  // no ingredients of its own yet.
+  savedRecipes: Record<string, Ingredient[]>;
 };
 
 const initialWeekMeals = ['bolo', 'poulet', 'curry', 'saumon', 'chili', 'quiche', 'risotto'];
@@ -56,6 +61,22 @@ const initialState: State = {
   shoppingChecked: {},
   extraItems: [],
   history: [],
+  savedRecipes: {},
+};
+
+const saveRecipe = (
+  recipes: State['savedRecipes'],
+  name: string,
+  ingredients: Ingredient[]
+): State['savedRecipes'] => {
+  if (ingredients.length === 0) return recipes;
+  return { ...recipes, [normalizeMealName(name)]: ingredients };
+};
+
+const withSavedRecipe = (recipes: State['savedRecipes'], meal: MealRef): MealRef => {
+  if (meal.ingredients.length > 0) return meal;
+  const saved = recipes[normalizeMealName(meal.name)];
+  return saved ? { ...meal, ingredients: saved } : meal;
 };
 
 type StoreValue = State & {
@@ -163,7 +184,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       commit((s) => {
         const idx = s.nextMenu.findIndex((sl) => !sl.meal);
         if (idx === -1) return s;
-        return { ...s, nextMenu: s.nextMenu.map((sl, i) => (i === idx ? { ...sl, meal } : sl)) };
+        const resolved = withSavedRecipe(s.savedRecipes, meal);
+        return { ...s, nextMenu: s.nextMenu.map((sl, i) => (i === idx ? { ...sl, meal: resolved } : sl)) };
       });
     },
     [commit]
@@ -183,7 +205,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     (index: number, meal: MealRef) => {
       commit((s) => ({
         ...s,
-        nextMenu: s.nextMenu.map((sl, i) => (i === index ? { ...sl, meal } : sl)),
+        nextMenu: s.nextMenu.map((sl, i) => (i === index ? { ...sl, meal: withSavedRecipe(s.savedRecipes, meal) } : sl)),
       }));
     },
     [commit]
@@ -230,12 +252,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   // changing the lasagna recipe for everyone forever.
   const updateMealIngredients = useCallback(
     (mealId: string, updater: (ingredients: Ingredient[]) => Ingredient[]) => {
-      commit((s) => ({
-        ...s,
-        nextMenu: s.nextMenu.map((slot) =>
-          slot.meal && slot.meal.id === mealId ? { ...slot, meal: { ...slot.meal, ingredients: updater(slot.meal.ingredients) } } : slot
-        ),
-      }));
+      commit((s) => {
+        const nextMenu = s.nextMenu.map((slot) =>
+          slot.meal && slot.meal.id === mealId
+            ? { ...slot, meal: { ...slot.meal, ingredients: updater(slot.meal.ingredients) } }
+            : slot
+        );
+        const updatedMeal = nextMenu.find((slot) => slot.meal?.id === mealId)?.meal;
+        const savedRecipes = updatedMeal ? saveRecipe(s.savedRecipes, updatedMeal.name, updatedMeal.ingredients) : s.savedRecipes;
+        return { ...s, nextMenu, savedRecipes };
+      });
     },
     [commit]
   );
@@ -291,13 +317,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const applyAiIngredients = useCallback(
     (results: { id: string; ingredients: Ingredient[] }[]) => {
       const byId = new Map(results.map((r) => [r.id, r.ingredients]));
-      commit((s) => ({
-        ...s,
-        nextMenu: s.nextMenu.map((sl) => {
+      commit((s) => {
+        let savedRecipes = s.savedRecipes;
+        const nextMenu = s.nextMenu.map((sl) => {
           const ingredients = sl.meal ? byId.get(sl.meal.id) : undefined;
-          return ingredients && sl.meal ? { ...sl, meal: { ...sl.meal, ingredients } } : sl;
-        }),
-      }));
+          if (!ingredients || !sl.meal) return sl;
+          savedRecipes = saveRecipe(savedRecipes, sl.meal.name, ingredients);
+          return { ...sl, meal: { ...sl.meal, ingredients } };
+        });
+        return { ...s, nextMenu, savedRecipes };
+      });
     },
     [commit]
   );
@@ -358,11 +387,11 @@ export function mealRefFromCatalog(id: string): MealRef {
   return toMealRef(id);
 }
 
-export function makeCustomMealRef(name: string, desc?: string, link?: string): MealRef {
+export function makeCustomMealRef(name: string, desc?: string, link?: string, tag = 'Personnalisé'): MealRef {
   return {
-    id: `custom_${Date.now()}`,
+    id: `custom_${Date.now()}_${Math.round(Math.random() * 1e6)}`,
     name,
-    tag: 'Personnalisé',
+    tag,
     ingredients: [],
     desc: desc?.trim() || undefined,
     link: link?.trim() || undefined,

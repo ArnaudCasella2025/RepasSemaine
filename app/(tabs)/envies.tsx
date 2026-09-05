@@ -2,11 +2,16 @@ import { useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { FormInput } from '../../components/FormInput';
 import { ScreenShell } from '../../components/ScreenShell';
+import { confirmAction } from '../../lib/confirm';
 import { useStore } from '../../lib/store';
 import { colors, fonts, radii } from '../../lib/theme';
 
 export default function EnviesScreen() {
   const { ideas, addIdea, removeIdea } = useStore();
+
+  const confirmRemoveIdea = (id: number, name: string) => {
+    confirmAction('Supprimer cette idée', `Supprimer "${name}" de la boîte à idées ?`, () => removeIdea(id));
+  };
   const [formOpen, setFormOpen] = useState(false);
   const [name, setName] = useState('');
   const [desc, setDesc] = useState('');
@@ -52,7 +57,7 @@ export default function EnviesScreen() {
         <View key={idea.id} style={styles.card}>
           <View style={styles.cardHeader}>
             <Text style={styles.cardTitle}>{idea.name}</Text>
-            <Pressable onPress={() => removeIdea(idea.id)} hitSlop={8}>
+            <Pressable onPress={() => confirmRemoveIdea(idea.id, idea.name)} hitSlop={8}>
               <Text style={styles.removeText}>✕</Text>
             </Pressable>
           </View>

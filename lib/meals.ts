@@ -22,6 +22,19 @@ export type Meal = {
   ingredients: Ingredient[];
 };
 
+// Loose match for meal names: same accents/case/spacing count as "the same
+// dish" so a saved recipe gets reused for "Pâtes Bolognaise" as much as
+// "pates bolognaise ". This isn't full fuzzy matching — genuinely different
+// wordings of the same dish won't match — just normalization of trivial
+// typing differences.
+export function normalizeMealName(name: string): string {
+  return name
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+}
+
 const ing = (name: string, rayonIndex: number): Ingredient => ({ name, rayon: RAYONS[rayonIndex] });
 
 export const MEALS_CATALOG: Record<string, Meal> = {
