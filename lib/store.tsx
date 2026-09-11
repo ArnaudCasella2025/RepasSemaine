@@ -25,14 +25,21 @@ const toMealRef = (id: string): MealRef => {
   return { id: m.id, name: m.name, tag: m.tag, ingredients: m.ingredients };
 };
 
-const ideaToMealRef = (idea: Idea): MealRef => ({
-  id: `idea_${idea.id}`,
-  name: idea.name,
-  tag: 'Envie',
-  ingredients: [],
-  desc: idea.desc.trim() || undefined,
-  link: idea.link.trim() || undefined,
-});
+// Firestore's setDoc() rejects any field whose value is `undefined` (it has
+// to be omitted entirely), so desc/link are only added to the object when
+// there's an actual value — never set to `undefined`.
+const ideaToMealRef = (idea: Idea): MealRef => {
+  const desc = idea.desc.trim();
+  const link = idea.link.trim();
+  return {
+    id: `idea_${idea.id}`,
+    name: idea.name,
+    tag: 'Envie',
+    ingredients: [],
+    ...(desc ? { desc } : {}),
+    ...(link ? { link } : {}),
+  };
+};
 
 type State = {
   week: WeekDay[];
@@ -388,12 +395,14 @@ export function mealRefFromCatalog(id: string): MealRef {
 }
 
 export function makeCustomMealRef(name: string, desc?: string, link?: string, tag = 'Personnalisé'): MealRef {
+  const trimmedDesc = desc?.trim();
+  const trimmedLink = link?.trim();
   return {
     id: `custom_${Date.now()}_${Math.round(Math.random() * 1e6)}`,
     name,
     tag,
     ingredients: [],
-    desc: desc?.trim() || undefined,
-    link: link?.trim() || undefined,
+    ...(trimmedDesc ? { desc: trimmedDesc } : {}),
+    ...(trimmedLink ? { link: trimmedLink } : {}),
   };
 }
