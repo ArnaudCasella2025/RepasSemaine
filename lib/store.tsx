@@ -1,5 +1,6 @@
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { notify } from './alert';
 import { ensureSignedIn, HOUSEHOLD_DOC_PATH, db } from './firebase';
 import { DAYS, Ingredient, MEALS_CATALOG, Rayon, normalizeMealName } from './meals';
 
@@ -153,7 +154,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     stateRef.current = next;
     setStateRaw(next);
     const ref = householdDocRef();
-    if (ref) setDoc(ref, next).catch(() => {});
+    if (!ref) return;
+    // setDoc() can reject the invalid-data case as a *synchronous* throw
+    // rather than a rejected promise, so a bare `.catch()` on it doesn't
+    // always run. Wrapping the call itself, and surfacing the failure
+    // instead of swallowing it, means a change that fails to sync is never
+    // silently missing on other devices without any signal.
+    try {
+      setDoc(ref, next).catch((err) => {
+        notify('Erreur de synchronisation', `Ce changement n'a pas pu être enregistré : ${err instanceof Error ? err.message : String(err)}`);
+      });
+    } catch (err) {
+      notify('Erreur de synchronisation', `Ce changement n'a pas pu être enregistré : ${err instanceof Error ? err.message : String(err)}`);
+    }
   }, []);
 
   const toggleDone = useCallback(
